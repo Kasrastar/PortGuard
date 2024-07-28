@@ -24,7 +24,8 @@ int main(){
         "g++ -c .\\src\\DeviceManager.cpp",
         "g++ -c main.cpp",
         "g++ *.o -o test",
-        "del *.o"
+        "del *.o",
+        "del *.txt"
     };
     for(auto cmd: commands)
         cout << exec(cmd.c_str());

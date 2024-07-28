@@ -25,14 +25,12 @@ class DeviceManager {
 
         void scanDevices(std::vector<DeviceInfo>& scannedDevices);
         void labelInitialDevices();
-        void checkNewDevices();
+        std::string checkNewDevices();
         void logDevices();
 
+        bool deviceExists(const std::string& vid, const std::string& pid) const;
         std::vector<DeviceInfo> get_devices() const;
         std::string get_log_file() const;
-
-        // friend std::string exec(const char*);
-        // friend std::vector<std::string> split(const std::string, const char);
 };
 
 inline std::string exec(const char* command){
@@ -67,7 +65,6 @@ inline std::string reduceWhitespaces(const std::string& str) {
     std::string result;
     bool inWhitespace = false;
 
-    // Reduce multiple whitespaces to a single space
     for (char ch : str) {
         if (std::isspace(ch)) {
             if (!inWhitespace) {
@@ -80,7 +77,6 @@ inline std::string reduceWhitespaces(const std::string& str) {
         }
     }
 
-    // Trim trailing spaces
     if (!result.empty() && std::isspace(result.back())) {
         result.pop_back();
     }

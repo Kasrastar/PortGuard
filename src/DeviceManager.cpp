@@ -47,44 +47,41 @@ void DeviceManager::scanDevices(std::vector<DeviceInfo>& scannedDevices) {
         command = command.replace(pos, 8, deviceInformation.at(1));
         // replace VID&PID and get DeviceID and name
         std::string recordInfo = exec(command.c_str());
-        bool flag = false;
-        int c = 1; 
 
-        // std::cout << recordInfo;
-        bool readRecord = false;
         std::vector<std::string> lines = split(recordInfo, '\n');
         for (const auto& line : lines) {
-            bool startReading = false;
             // Skip empty lines and the header line
-            if (line.empty() || line.find("DeviceID") != std::string::npos) {
-                readRecord = true;
+            if (line.empty() || line.find("DeviceID") != std::string::npos) 
+                continue;
+            
+
+            std::vector<std::string> attributes = split(reduceWhitespaces(line), ' ');
+            if (attributes.size() < 2) {
                 continue;
             }
 
-            if (readRecord){
-                readRecord = false;
-                std::vector<std::string> attributes = split(reduceWhitespaces(line), ' ');
-                if (attributes.size() < 2) {
-                    continue;
-                }
+            device_id = attributes[0];
+            name.clear();
+            for (int index=1; index<attributes.size(); index++)
+                name += attributes.at(index) + " ";
+            
+            size_t vidStart = command.find("VID_");
+            size_t pidStart = command.find("PID_");
+            if (vidStart != std::string::npos && pidStart != std::string::npos) {
+                vid = command.substr(vidStart, 8); // Assuming VID_XXXX format
+                pid = command.substr(pidStart, 8); // Assuming PID_XXXX format
 
-                device_id = attributes[0];
-                name.clear();
-                for (int index=1; index<attributes.size(); index++)
-                    name += attributes.at(index) + " ";
-                
-                size_t vidStart = command.find("VID_");
-                size_t pidStart = command.find("PID_");
-                if (vidStart != std::string::npos && pidStart != std::string::npos) {
-                    vid = command.substr(vidStart, 8); // Assuming VID_XXXX format
-                    pid = command.substr(pidStart, 8); // Assuming PID_XXXX format
+                auto it = std::find_if(scannedDevices.begin(), scannedDevices.end(), [&pid, &vid](const DeviceInfo& d) {
+                    return d.get_pid() == pid && d.get_vid() == vid;
+                });
 
+                if (it != scannedDevices.end()) {
+                    it->add_name(name);
+                } else {
                     scannedDevices.push_back(DeviceInfo(pid, vid, name, device_id, ""));
                 }
             }
         }
-
-
     } 
 }
 
@@ -99,9 +96,11 @@ void DeviceManager::labelInitialDevices() {
     saveDevices();
 }
 
-void DeviceManager::checkNewDevices(){
+std::string DeviceManager::checkNewDevices(){
     std::vector<DeviceInfo> scannedDevices;
     scanDevices(scannedDevices);
+
+    std::ostringstream newDevicesStream;
 
     for (const auto& device : scannedDevices) {
         auto it = std::find_if(devices.begin(), devices.end(), [&device](const DeviceInfo& d) {
@@ -111,17 +110,25 @@ void DeviceManager::checkNewDevices(){
         if (it == devices.end()) {
             DeviceInfo newDevice = device;
             newDevice.set_label("NewDevice");
-            devices.push_back(newDevice);
-            // newDevice.Label = "NewDevice";
-            saveDevices();
-            printf(
-                "New device detected and logged: %s (%s, %s)",
-                newDevice.get_name().c_str(), newDevice.get_pid().c_str(), newDevice.get_vid().c_str()
-            );
+            // devices.push_back(newDevice);
+            // saveDevices();
+            newDevicesStream << newDevice.get_pid() << "," << newDevice.get_vid() ;
+        } else {
+            for (const auto& name : device.get_names()) {
+                it->add_name(name);
+            }
         }
     }
 
+    return newDevicesStream.str();
 }
+
+bool DeviceManager::deviceExists(const std::string& vid, const std::string& pid) const {
+    return std::any_of(devices.begin(), devices.end(), [&vid, &pid](const DeviceInfo& device) {
+        return device.get_vid() == vid && device.get_pid() == pid;
+    });
+}
+
 
 void DeviceManager::logDevices(){
    saveDevices();
