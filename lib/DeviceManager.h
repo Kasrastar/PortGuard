@@ -14,6 +14,7 @@ class DeviceManager {
     private:
         std::vector<DeviceInfo> devices;
         std::string logfile;
+        bool isBoardLogExist;
 
         void loadDevices();
         void saveDevices();

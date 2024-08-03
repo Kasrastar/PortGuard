@@ -1,75 +1,77 @@
 #include "..\lib\DeviceManager.h"
 
-std::string deviceListCommand = "wmic path Win32_PnPEntity where \"DeviceID like 'USB%'\" get DeviceID";
-std::string deviceInformationCommand = "wmic path Win32_PnPEntity where \"DeviceID like '%RECORDID%'\" get name, DeviceID";
-size_t pos = deviceInformationCommand.find("RECORDID");
-
+const std::string deviceListCommand = "wmic path Win32_PnPEntity where \"DeviceID like 'USB%'\" get DeviceID";
+const std::string deviceInformationCommand = "wmic path Win32_PnPEntity where \"DeviceID like '%RECORDID%'\" get name, DeviceID";
+const size_t pos = deviceInformationCommand.find("RECORDID");
 
 void DeviceManager::loadDevices(){
     std::ifstream file(logfile);
+    isBoardLogExist = false;
+
     if (!file.is_open()) {
+        std::cerr << "Error: Unable to open log file: " << logfile << std::endl;
+        isBoardLogExist = true;
         return;
     }
-
-    std::string line;
-    while (std::getline(file, line)) {
-        devices.push_back(DeviceInfo::from_string(line));
-    }
-
-    for (auto device : devices)
-        std::cout << device.to_string() << std::endl;
     
-
+    if (isBoardLogExist){
+            std::string line;
+        while (std::getline(file, line)) {
+            devices.push_back(DeviceInfo::from_string(line));
+        }
+        for (const auto& device : devices)
+            std::cout << device.to_string() << std::endl;
+    }
+    
     file.close();   
 }
 
 void DeviceManager::saveDevices(){
     std::ofstream file(get_log_file());
-    for (const auto& device : devices) {
-        file << device.to_string() << "\n";
+    if (!file.is_open()) {
+        std::cerr << "Error: Unable to open log file for writing: " << get_log_file() << std::endl;
+        return;
     }
+
+    for (const auto& device : devices) {
+        file << device.to_string() << std::endl;
+    }
+    
     file.close();
 }
 
 void DeviceManager::scanDevices(std::vector<DeviceInfo>& scannedDevices) {
-    std::string pid, vid, name, device_id;
-
-    // extract list of all devices connected to motherboard
     std::string deviceList = exec(deviceListCommand.c_str());
-    for (auto device: split(deviceList, '\n')){ 
-        // parse and extract VID&PID
+    for (const auto& device : split(deviceList, '\n')) {
         std::vector<std::string> deviceInformation = split(device, '\\');
 
-        if (deviceInformation.size() != 3) // check for correct data
+        if (deviceInformation.size() != 3)
             continue;
 
         std::string command = deviceInformationCommand;
-        command = command.replace(pos, 8, deviceInformation.at(1));
-        // replace VID&PID and get DeviceID and name
+        command.replace(pos, 8, deviceInformation[1]);
+        
         std::string recordInfo = exec(command.c_str());
-
         std::vector<std::string> lines = split(recordInfo, '\n');
+        
         for (const auto& line : lines) {
-            // Skip empty lines and the header line
             if (line.empty() || line.find("DeviceID") != std::string::npos) 
                 continue;
-            
 
             std::vector<std::string> attributes = split(reduceWhitespaces(line), ' ');
-            if (attributes.size() < 2) {
+            if (attributes.size() < 2)
                 continue;
-            }
 
-            device_id = attributes[0];
-            name.clear();
-            for (int index=1; index<attributes.size(); index++)
-                name += attributes.at(index) + " ";
-            
+            std::string device_id = attributes[0];
+            std::string name;
+            for (size_t index = 1; index < attributes.size(); ++index)
+                name += attributes[index] + " ";
+
             size_t vidStart = command.find("VID_");
             size_t pidStart = command.find("PID_");
             if (vidStart != std::string::npos && pidStart != std::string::npos) {
-                vid = command.substr(vidStart, 8); // Assuming VID_XXXX format
-                pid = command.substr(pidStart, 8); // Assuming PID_XXXX format
+                std::string vid = command.substr(vidStart, 8);
+                std::string pid = command.substr(pidStart, 8);
 
                 auto it = std::find_if(scannedDevices.begin(), scannedDevices.end(), [&pid, &vid](const DeviceInfo& d) {
                     return d.get_pid() == pid && d.get_vid() == vid;
@@ -78,11 +80,11 @@ void DeviceManager::scanDevices(std::vector<DeviceInfo>& scannedDevices) {
                 if (it != scannedDevices.end()) {
                     it->add_name(name);
                 } else {
-                    scannedDevices.push_back(DeviceInfo(pid, vid, name, device_id, ""));
+                    scannedDevices.emplace_back(pid, vid, name, device_id, "");
                 }
             }
         }
-    } 
+    }
 }
 
 void DeviceManager::labelInitialDevices() {
@@ -96,7 +98,7 @@ void DeviceManager::labelInitialDevices() {
     saveDevices();
 }
 
-std::string DeviceManager::checkNewDevices(){
+std::string DeviceManager::checkNewDevices() {
     std::vector<DeviceInfo> scannedDevices;
     scanDevices(scannedDevices);
 
@@ -110,9 +112,7 @@ std::string DeviceManager::checkNewDevices(){
         if (it == devices.end()) {
             DeviceInfo newDevice = device;
             newDevice.set_label("NewDevice");
-            // devices.push_back(newDevice);
-            // saveDevices();
-            newDevicesStream << newDevice.get_pid() << "," << newDevice.get_vid() ;
+            newDevicesStream << newDevice.get_pid() << "," << newDevice.get_vid();
         } else {
             for (const auto& name : device.get_names()) {
                 it->add_name(name);
@@ -129,8 +129,7 @@ bool DeviceManager::deviceExists(const std::string& vid, const std::string& pid)
     });
 }
 
-
-void DeviceManager::logDevices(){
+void DeviceManager::logDevices() {
    saveDevices();
    std::cout << "All devices logged successfully." << std::endl; 
 }
@@ -142,4 +141,3 @@ std::string DeviceManager::get_log_file() const {
 std::vector<DeviceInfo> DeviceManager::get_devices() const {
     return devices;
 }
-

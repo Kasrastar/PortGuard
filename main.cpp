@@ -10,10 +10,10 @@ int main(int argc, const char **argv){
     // deviceManager.logDevices();            // Log initial devices
 
     
-    while( 1 ){
+    while( true ){
         Sleep(2000);
         std::string data = deviceManager.checkNewDevices();
-        if (!data.empty() || data.find("No Instance(s) Available.") != std::string::npos)
+        if (!data.empty() || data.find("Instance(s)") != std::string::npos)
             std::cout << data << std::endl;
         
     }
